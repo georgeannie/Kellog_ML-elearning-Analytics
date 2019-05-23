@@ -61,23 +61,23 @@ independent_layout = fluidRow(
                column(12,
                       radio_but_indep_var
                ))),
-    column(width=7,
+    column(width=9,
            fluidRow(
                plot_type    
            ),
-           fluidRow(
-               conditionalPanel(
-                   condition="input.select_plot == 'Correlation Plot/Histogram'",
-                   column(4, plotOutput("hist")),
-                   column(8, plotOutput("corr_ind"))
+           conditionalPanel(
+                condition="input.select_plot == 'Correlation Plot/Histogram'",
+                fluidRow( tags$div(style = "height:300px;",
+                     column(6, plotOutput("hist")) ,
+                     column(6, plotOutput("corr_ind"))
                    
-               ), 
+               ))), 
                
                conditionalPanel(
                    condition="!input.select_plot == 'Correlation Plot/Histogram'",
-                   plotOutput("plot_choice")
-               ) 
-           )
+                   fluidRow( 
+                       plotOutput("plot_choice")
+               ))
     )
 )
 

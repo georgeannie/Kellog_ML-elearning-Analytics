@@ -5,18 +5,40 @@ library(ggplot2)
 library(dplyr)
 library(tidyr)
 library(ggcorrplot)
-sinter = read.csv("syntheticData_20190520.csv",
-                  stringsAsFactors = FALSE, header = TRUE)
 
 shinyServer(function(input, output) {
     
     output$correlation_dependent = renderPlot(
         dep_sinter=sinter[, names(sinter) %in% c('Sinter_pct', 'IRF_pct', 'ERF_pct', 'TI', 'SI')],
         corr_dep = round(cor(dep_sinter, use="pairwise.complete.obs"), 1),
-        ggcorrplot(corr_dep, col=c("purple", "grey", "black")) #+
+        ggcorrplot(corr_dep, col=c("orange", "yellow", "black")) #+
            # ggtitle("Correlation plot") + 
             #theme(plot.title = element_text(hjust = 0.5, colour = "purple", size=18, face='bold'))
     )
+    
+    input_var = reactive({
+        input$radio_choice
+    })
+    
+    output$hist = renderPlot({
+        input_var=input_var()
+        if (is.numeric(sinter[, input_var])){
+            hist(sinter[,input_var],
+                 xlab=as.character(input_var),
+                 main=paste("Histogram of ", as.character(input_var)),
+                 col="yellow")
+        }
+    })
+    
+    output$corr_ind = renderPlot({
+        indep_sinter=sinter[,-c(1:2, 4:10)]
+        corr_indep = round(cor(indep_sinter, use="pairwise.complete.obs"), 1)
+        ggcorrplot(corr_indep, col=c("orange", "yellow", "black")) #+
+        # ggtitle("Correlation plot") + 
+        #theme(plot.title = element_text(hjust = 0.5, colour = "purple", size=18, face='bold'))
+    })
+    
+    
     # Age_out = reactive({
     #     AgeBin(as.numeric(input$age), as.character(input$units))
     # })
