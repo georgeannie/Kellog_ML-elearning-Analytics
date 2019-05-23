@@ -6,15 +6,21 @@ library(dplyr)
 library(tidyr)
 library(ggcorrplot)
 
+sinter = read.csv("syntheticData_20190520.csv",
+                  stringsAsFactors = FALSE, header = TRUE)
+
+#Remove underscores and change column names to title format for display
+names(sinter)=str_to_title(gsub("_", " ", names(sinter)))
+
 shinyServer(function(input, output) {
     
-    output$correlation_dependent = renderPlot(
-        dep_sinter=sinter[, names(sinter) %in% c('Sinter_pct', 'IRF_pct', 'ERF_pct', 'TI', 'SI')],
-        corr_dep = round(cor(dep_sinter, use="pairwise.complete.obs"), 1),
+    output$correlation_dependent = renderPlot({
+        dep_sinter=sinter[, names(sinter) %in% c('Sinter Pct', 'Irf Pct', 'Erf Pct', 'Ti', 'Si')]
+        corr_dep = round(cor(dep_sinter, use="pairwise.complete.obs"), 1)
         ggcorrplot(corr_dep, col=c("orange", "yellow", "black")) #+
            # ggtitle("Correlation plot") + 
             #theme(plot.title = element_text(hjust = 0.5, colour = "purple", size=18, face='bold'))
-    )
+    })
     
     input_var = reactive({
         input$radio_choice
