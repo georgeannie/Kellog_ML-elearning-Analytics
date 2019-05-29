@@ -4,46 +4,73 @@ library(ggplot2)
 library(dplyr)
 library(tidyr)
 library(stringr)
+source("sinter_function.R")
 
-sinter = read.csv("syntheticData_20190520.csv",
-                  stringsAsFactors = FALSE, header = TRUE)
+sinter= read_rename_sinter()
 
-#Remove underscores and change column names to title format for display
-names(sinter)=str_to_title(gsub("_", " ", names(sinter)))
-
-
+#PLOTS
 #Correlation plot for dependent variables                                
-corr_plot=box(title=tags$a(class="primary-title", 
-                           style='margin-left:15px; font-type:bold', 
-                           "Correlation plot of potential dependent variables", "and Outcome"), width = NULL, 
-              background = "black", solidHeader = TRUE, 
-              plotOutput('correlation_dependent'))
+corr_plot_dep= plotOutput('correlation_dependent', height="400px", width = 'auto')
 
-
-#tab1 - dependent variables layout
-dependent_layout = fluidRow( 
-    column(width=5,
-           corr_plot
-    )
-    #,
-    # column(width=3.5,
-    #     fluidRow(
-    #        irt_layout,
-    #        ert_layout
-    #     )
-    # ),
-    # column(width=3.5,
-    #     fluidRow(
-    #         ti_layout,
-    #         si_layout
-    #     )
-    # )
+#Time series
+ts_dep = box(title=tags$a(class="primary-title", 
+                          style='margin-left:15px; font-type:bold; height:30px; color:black', 
+                          "Variation in Potential Dependent variables by time"), 
+             width = NULL, 
+             solidHeader = TRUE, 
+             plotOutput('ts_dependent', height="215px", width = 'auto')
 )
 
-#List only required independent variables
+
+#Histogram dependent
+hist_dep  =   tags$h2(plotOutput('hist_dependent', width = "auto", height="350px"))
+
+
+#Scatter plot - dependent vs kpi
+scatter_dep =plotOutput('scatter_dependent', width = "auto", height="350px")
+
+#radio button potential dependent
+#1.List only required independent variables
+dep_var=names(sinter)[c(3, 5, 7:9)]
+choice_dep = c("All", dep_var[-1])
+
+#2. choice of dependent var
+radio_dep = radioButtons("radio_dep_choice", "", 
+                          choices = choice_dep,
+                          selected = choice_dep[1])
+
+#3. Box for radio button
+text_potential_dep = box(title=tags$h5("Potential Dependent Variables", 
+                        style='font-weight:bold'), 
+                        solidHeader=TRUE, width = NULL,
+                        radio_dep)
+                         
+#Tab layouts
+#1. NavBar Menu= Dependent variables
+#a. Stationary layout
+dependent_layout_row1 = fluidRow( 
+    column(width=3, 
+           text_potential_dep
+    ),
+    column(width=9, 
+           tabsetPanel(
+             tabPanel("Histograms/Boxplot",
+                      hist_dep),
+            tabPanel("Correlation matrix",
+                      corr_plot_dep),
+            tabPanel("Scatter/Bar plots",
+                     scatter_dep),
+            tabPanel("Time Series plots",
+                      ts_dep)
+            )
+    )
+  )
+
+#2. Navbar - Independent variables
+#a. List only required independent variables
 ind_var=names(sinter)[c(2:3, 11:19)]
 
-#choice of independent var
+#b. choice of independent var
 radio_but_indep_var = radioButtons("radio_choice", "", 
                                    choices = ind_var,
                                    selected = ind_var[1])
@@ -85,10 +112,10 @@ model_layout = fluidRow()
 
 
 #List the tabs
-tab_dependent = tabPanel("Potential Dependent Variables",
-                         dependent_layout)
+tab_dependent = tabPanel("Dependent Variables",
+                         dependent_layout_row1)
 
-tab_independent = tabPanel("Potential InDependent Variables",
+tab_independent = tabPanel("Independent Variables",
                            independent_layout)
 
 tab_model = tabPanel("Model and Recommendation",
@@ -107,15 +134,16 @@ title_color=tags$head(tags$style(HTML('
 
 #Increase height of header
 header_height=tags$li(class = "dropdown",
-                      tags$style(".main-header {max-height: 100px}"),
-                      tags$style(".main-header .logo {height: 100px}")
+                      tags$style(".main-header {max-height: 580px}"),
+                      tags$style(".main-header .logo {height: 50px}")
 )
 
 #Add logo to header
-title_logo=span(column(1, tags$img(src='logo.jpg', height='100', width='250', border='0', 
+title_logo=span(column(1, tags$img(src='logo.jpg', height='50', width='150', border='0', 
                                    style='margin-left:-2px; padding:0; margin:0; display:block; font-size:0')), 
                 column(8, class="title-box",
-                       tags$h2(class="primary-title", style='margin-top:50px; margin-left:5px; color:white', 
+                       tags$h2(class="primary-title", style='margin-top:10px; margin-left:10px; color:white; 
+                               font-size:8', 
                                "SINTER PLANT PROJECT")
                 )
 )
@@ -130,7 +158,9 @@ shinyUI(dashboardPage(skin="black",
                       
                       dashboardBody(
                           title_color,
-                          tabsetPanel(
+                          navbarPage(tags$h4("Sinter plant Viz", 
+                                style='margin-top:2px; margin-left:10px; color:black; 
+                                      font-size:10; font-weight:bold'),     
                               tab_dependent,
                               tab_independent,
                               tab_model

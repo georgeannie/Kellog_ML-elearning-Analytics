@@ -5,24 +5,226 @@ library(ggplot2)
 library(dplyr)
 library(tidyr)
 library(ggcorrplot)
+library(plotly)
+library(reshape2)
+library(lubridate)
+source("sinter_function.R")
 
-sinter = read.csv("syntheticData_20190520.csv",
-                  stringsAsFactors = FALSE, header = TRUE)
-
-#Remove underscores and change column names to title format for display
-names(sinter)=str_to_title(gsub("_", " ", names(sinter)))
+sinter= read_rename_sinter()
 
 shinyServer(function(input, output) {
-    
-    output$correlation_dependent = renderPlot({
-        dep_sinter=sinter[, names(sinter) %in% c('Sinter Pct', 'Irf Pct', 'Erf Pct', 'Ti', 'Si')]
-        corr_dep = round(cor(dep_sinter, use="pairwise.complete.obs"), 1)
-        ggcorrplot(corr_dep, col=c("orange", "yellow", "black")) #+
-           # ggtitle("Correlation plot") + 
-            #theme(plot.title = element_text(hjust = 0.5, colour = "purple", size=18, face='bold'))
+    var=reactive({
+        input$radio_dep_choice
     })
     
-    input_var = reactive({
+    pct_var = reactive({
+        ts_sinter=sinter[, names(sinter) %in% c('Timestamp', "% Internal Return Fines", 
+                                                "% External Return Fines", "Irf", "Erf")]
+        ts_sinter$Irf = coalesce(ts_sinter$Irf, 0)
+        ts_sinter$Erf = coalesce(ts_sinter$Erf, 0)
+        ts_sinter$`% Internal Return Fines` = coalesce(ts_sinter$`% Internal Return Fines`, 0)
+        ts_sinter$`% External Return Fines` = coalesce(ts_sinter$`% External Return Fines`, 0)
+        
+        ts_sinter = ts_sinter[complete.cases(ts_sinter),]
+        ts_sinter = ts_sinter %>%
+            mutate(Timestamp=as.POSIXct(Timestamp, format="%m/%d/%Y %H:%M:%S"),
+                    day=as.Date(mdy(format(as.POSIXct(Timestamp), format="%m/%d/%Y")))) %>%
+            select(-Timestamp)
+        
+        ts_sinter_ref=aggregate(ts_sinter["% Internal Return Fines"], by=ts_sinter["day"],
+                                                                              mean)
+        ts_sinter_ref=cbind(ts_sinter_ref,
+                        aggregate(ts_sinter["% External Return Fines"], by=ts_sinter["day"],
+                                mean))
+        
+        ts_sinter_ref=ts_sinter_ref[,-c(3)]
+        
+        ggplot(ts_sinter_ref, aes(y=  "% Internal Return Fines", x=as.numeric(day), col="blue")) +
+            geom_line() +
+            scale_y_continuous(limits=c(9.2, 11))
+        scale_color_manual(values=c("#009E73", "#0072B2"),name="% Fines") +
+        ts_sinter_daily =  data.frame(ts(ts_sinter_ref, start=c(2017, 04), end=c(2019, 03), 
+                                      frequency=7))
+        plot(ts_sinter_daily)  
+        
+        
+        ts_sinter_monthly = ts(ts_sinter_ref, start=c(2017, 04), end=c(2019, 03), frequency=12)
+        
+        
+        plot(ts_sinter_monthly[, '% Internal Return Fines'])
+        plot(ts_sinter_ts[, '% External Return Fines'])
+        
+#convert to weekly
+        
+        ggplot(ts_sinter$`% Internal Return Fines` ~ ts_sinter$Timestamp, type="l", col="red")
+        ts_sinter_week = aggregate(`% Internal Return Fines`~ week(Timestamp), 
+                                   data=ts_sinter, 
+                                   mean)
+        ts_sinter_week2 = cbind(ts_sinter_week, 
+                                aggregate(`% External Return Fines`~ week(Timestamp), 
+                                          data=ts_sinter, 
+                                          mean))
+        ts_sinter_week = ts_sinter_week[-c(3)]
+        ts_sinter_week = ts_sinter_week %>%
+            plyr::rename(c("ts_sinter$`% Internal Return Fines`" = "Avg % Internal Return Fines",
+                           "ts_sinter$`% External Return Fines`" = "Avg % External Return Fines", 
+                           "week(ts_sinter$Timestamp)" = "Week starting"))
+        
+    })
+    
+    output$correlation_dependent = renderPlot({
+      dep_sinter=sinter[, names(sinter) %in% c('% Sinter', "% Internal Return Fines", 
+                                         "% External Return Fines", "Tumbling Index",
+                                         "Shatter Index")]
+      corr_dep = round(cor(dep_sinter, use="pairwise.complete.obs"), 1)
+      ggcorrplot(corr_dep, col=c("navy", "lightblue", "white")) +
+             ggtitle("Correlation of Potential Dependent Variables vs % Sinter") + 
+             theme(plot.title = element_text(hjust = 0.5, colour = "black", size=15, face='bold',
+                                              vjust=-2))
+     })
+    
+    
+    output$hist_dependent = renderPlot({
+        if (input$radio_dep_choice == "All"){
+            dep_sinter=sinter[, names(sinter) %in% c("% Internal Return Fines", 
+                                                 "% External Return Fines", "Tumbling Index",
+                                                 "Shatter Index")]
+            
+            dep_sinter=dep_sinter%>% gather(key, value)
+            p=ggplot(dep_sinter, aes(x=value))+
+                geom_histogram(color="black", fill="lightblue", position="identity", binwidth = 2)+
+                facet_wrap(key ~ ., scales = "free") + 
+                theme_minimal() +
+                xlab("") +
+                ylab("Frequency") +
+                ggtitle("Histogram of Potential Dependent Variables") +
+                theme(plot.title = element_text(size = 20, face = "bold", hjust = 0.5, vjust = 0.3),
+                      strip.text.x =  element_text(size=12))
+            p    
+        } else {
+            var = var()
+            dep_sinter=data.frame(var=sinter[,var]) %>%
+                na.omit()
+            
+            p=ggplot(dep_sinter, aes(x=var))+
+                geom_histogram(color="black", fill="lightblue", stat = "bin", na.rm = TRUE, binwidth = 1)+
+                theme_minimal() +
+                xlab("") +
+                ylab("Frequency") +
+                ggtitle(paste("Histogram of ", var)) +
+                theme(plot.title = element_text(size = 18, face = "bold", hjust = 0.5, vjust = 0.3))
+            p
+        }
+        
+    })
+    
+    output$scatter_dependent = renderPlot({
+        if (input$radio_dep_choice == "All"){
+            dep_sinter=sinter[, names(sinter) %in% c("% Sinter", "% Internal Return Fines", 
+                                                     "% External Return Fines", "Tumbling Index",
+                                                     "Shatter Index")]
+            
+            dep_sinter=dep_sinter%>% gather(key, value, -'% Sinter')
+            p=ggplot(dep_sinter, aes(x='% Sinter', y=value))+
+                geom_point(color="lightblue")+
+                facet_wrap(key ~ ., scales = "free") + 
+                theme_minimal() +
+                ylab("") +
+                ggtitle("Histogram of Potential Dependent Variables") +
+                theme(plot.title = element_text(size = 20, face = "bold", hjust = 0.5, vjust = 0.3),
+                      strip.text.x =  element_text(size=12))
+            p    
+         } #else {
+        #     var = var()
+        #     dep_sinter=data.frame(var=sinter[,var]) %>%
+        #         na.omit()
+        #     
+        #     p=ggplot(dep_sinter, aes(x=var))+
+        #         geom_histogram(color="black", fill="lightblue", stat = "bin", na.rm = TRUE, binwidth = 1)+
+        #         theme_minimal() +
+        #         xlab("") +
+        #         ylab("Frequency") +
+        #         ggtitle(paste("Histogram of ", var)) +
+        #         theme(plot.title = element_text(size = 18, face = "bold", hjust = 0.5, vjust = 0.3))
+        #     p
+        # }
+        
+    })
+    
+    output$ts_dependent_week_pct= renderPlot({
+        ts_sinter_week=pct_var()
+        # ts_sinter_ref = ts_sinter %>%
+        #     mutate(Timestamp=as.POSIXct(Timestamp, format="%m/%d/%Y %H:%M:%S")) %>%
+        #     na.omit(Timestamp) %>%
+        #     gather(key, value, -Timestamp)
+        # ggplot(ts_sinter_ref, aes(x=Timestamp, y=value, col=key, group=1)) +
+        #     geom_line() + 
+        #     ggtitle("Variation in % Return Fines by Date and Time") +
+        #     xlab("Date/Time") +
+        #     ylab("% Return Fines")
+          ggplot(ts_sinter_week, aes(x=Timestamp, y=value, col=key, group=1)) +
+            geom_line() + 
+            ggtitle("Variation in % Return Fines by Date and Time") +
+            xlab("Date/Time") +
+            ylab("% Return Fines")
+        
+    })
+    output$ts_dependent_pct= renderPlot({
+        ts_sinter_ref = ts_sinter %>%
+            mutate(Timestamp=as.POSIXct(Timestamp, format="%m/%d/%Y %H:%M:%S")) %>%
+            na.omit(Timestamp) %>%
+            gather(key, value, -Timestamp)
+        ggplot(ts_sinter_ref, aes(x=Timestamp, y=value, col=key, group=1)) +
+            geom_line() + 
+            ggtitle("Variation in % Return Fines by Date and Time") +
+            xlab("Date/Time") +
+            ylab("% Return Fines")
+        
+    })
+        
+    output$ts_dependent_pct_time = renderPlot({
+        ts_sinter=sinter[, names(sinter) %in% c('Timestamp', "% Internal Return Fines", 
+                                                 "% External Return Fines")]
+        ts_sinter$`% Internal Return Fines`[is.na(ts_sinter$`% Internal Return Fines`)] = 0
+        ts_sinter$`% External Return Fines`[is.na(ts_sinter$`% External Return Fines`)] = 0
+        
+        ts_sinter_ref = ts_sinter %>%
+            mutate(Timestamp=as.POSIXct(Timestamp, format="%m/%d/%Y %H:%M:%S"),
+                   time_dep=(format(as.POSIXct(Timestamp), format="%T")))  %>%
+            filter(!is.na(Timestamp),
+                   !is.na(time_dep)) %>%
+               select(-Timestamp) %>%
+            gather(key, value, -time_dep) %>%
+            group_by(time_dep, key) %>%
+            summarise(mean=round(mean(value),0))
+            
+        ggplot(ts_sinter_ref, aes(x=time_dep, y=mean, col=key, group=1)) +
+        geom_line()
+    })
+    
+
+    output$ts_dependent_pct_day = renderPlot({
+        ts_sinter=sinter[, names(sinter) %in% c('Timestamp', "% Internal Return Fines", 
+                                                "% External Return Fines")]
+        ts_sinter$`% Internal Return Fines`[is.na(ts_sinter$`% Internal Return Fines`)] = 0
+        ts_sinter$`% External Return Fines`[is.na(ts_sinter$`% External Return Fines`)] = 0
+        
+        ts_sinter_ref = ts_sinter %>%
+            mutate(Timestamp=as.POSIXct(Timestamp, format="%m/%d/%Y %H:%M:%S"),
+                   time_dep=(format(as.POSIXct(Timestamp), format="%D")))  %>%
+            filter(!is.na(Timestamp),
+                   !is.na(time_dep)) %>%
+            select(-Timestamp) %>%
+            gather(key, value, -time_dep) %>%
+            group_by(time_dep, key) %>%
+            summarise(mean=round(mean(value),0))
+        
+        ggplot(ts_sinter_ref, aes(x=time_dep, y=mean, col=key, group=1)) +
+            geom_line()
+    })
+    
+    
+        input_var = reactive({
         input$radio_choice
     })
     
