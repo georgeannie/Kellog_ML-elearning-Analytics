@@ -12,113 +12,80 @@ sinter= read_rename_sinter()
 #Correlation plot for dependent variables                                
 corr_plot_dep= plotOutput('correlation_dependent', height="400px", width = 'auto')
 
-#Time series
-ts_dep = box(title=tags$a(class="primary-title", 
-                          style='margin-left:15px; font-type:bold; height:30px; color:black', 
-                          "Variation in Potential Dependent variables by time"), 
-             width = NULL, 
-             solidHeader = TRUE, 
-             plotOutput('ts_dependent', height="215px", width = 'auto')
-)
-
-
 #Histogram dependent
-hist_dep  =   tags$h2(plotOutput('hist_dependent', width = "auto", height="350px"))
-
+hist_dep  =   plotOutput('hist_dependent', width = "auto", height="350px")
 
 #Scatter plot - dependent vs kpi
 scatter_dep =plotOutput('scatter_dependent', width = "auto", height="350px")
 
 #radio button potential dependent
-#1.List only required independent variables
-dep_var=names(sinter)[c(3, 5, 7:9)]
-choice_dep = c("All", dep_var[-1])
+#1. choice of dependent var
+radio_dep = radioButtons("radio_dep_choice", "Potential Dependent Variables Plots", 
+                          choices = list("Histogram" = 1, 
+                                         "Correlation matrix" =2,
+                                         "Summary" = 3, 
+                                         "Data" =4),
+                          selected = 1)
 
-#2. choice of dependent var
-radio_dep = radioButtons("radio_dep_choice", "", 
-                          choices = choice_dep,
-                          selected = choice_dep[1])
-
-#3. Box for radio button
-text_potential_dep = box(title=tags$h5("Potential Dependent Variables", 
-                        style='font-weight:bold'), 
-                        solidHeader=TRUE, width = NULL,
-                        radio_dep)
-                         
 #Tab layouts
 #1. NavBar Menu= Dependent variables
-#a. Stationary layout
+#a. Stationary layout - change panel based on choice
 dependent_layout_row1 = fluidRow( 
-    column(width=3, 
-           text_potential_dep
+    column(width=2, 
+           wellPanel(radio_dep)
     ),
-    column(width=9, 
-           tabsetPanel(
-             tabPanel("Histograms/Boxplot",
-                      hist_dep),
-            tabPanel("Correlation matrix",
-                      corr_plot_dep),
-            tabPanel("Scatter/Bar plots",
-                     scatter_dep),
-            tabPanel("Time Series plots",
-                      ts_dep)
-            )
-    )
-  )
+    column(width=10, 
+             conditionalPanel(
+                 condition="input.radio_dep_choice == 1", 
+                 fluidRow(selectInput("plant", "Select Plant:", 
+                                           choices=c('Plant 1' =1, 
+                                                     'Plant 2' =2, 
+                                                     'Plant 3' = 3,
+                                                     'Plant 4'  = 4)),
+                                            selected=choices[[1]]),
+                 fluidRow(
+                   box(title="", 
+                     solidHeader = TRUE, width="auto", 
+                     plotOutput("histogram", height="350") )
+                 )),
+             conditionalPanel(
+                 condition=("input.radio_dep_choice == 2"), 
+                 fluidRow(selectInput("plant", "Select Plant:", 
+                                      choices=c('Plant 1' =1, 
+                                                'Plant 2' =2, 
+                                                'Plant 3' = 3,
+                                                'Plant 4'  = 4)),
+                          selected=choices[[1]]),
+                 fluidRow(
+                     box(title="", 
+                         solidHeader = TRUE, width="auto",
+                         plotOutput("scatter_matrix", height="380"))
+                     ),
+                 fluidRow(
+                    box(title="", 
+                     solidHeader = TRUE, width="auto",
+                     plotOutput("correlation_matrix", width = "auto", height="400"))
+                )),
+             conditionalPanel(
+               condition=("input.radio_dep_choice == 3"),
+                 dataTableOutput("summary")
+                 ),
 
-#2. Navbar - Independent variables
-#a. List only required independent variables
-ind_var=names(sinter)[c(2:3, 11:19)]
-
-#b. choice of independent var
-radio_but_indep_var = radioButtons("radio_choice", "", 
-                                   choices = ind_var,
-                                   selected = ind_var[1])
-
-#choice of plots
-plot_type=selectInput("select_plot", "Type of Plot", 
-                      choices = c("Correlation Plot/Histogram", "Scatter Plot (numerical variables)",
-                                  "Box Plot (categorical variables)",
-                                  "Box plot"))
-
-#tab2 - independent variables layout            
-independent_layout = fluidRow( 
-    column(width=3, 
-           box(title="Independent Variables", width = NULL,
-               column(12,
-                      radio_but_indep_var
-               ))),
-    column(width=9,
-           fluidRow(
-               plot_type    
-           ),
-           conditionalPanel(
-                condition="input.select_plot == 'Correlation Plot/Histogram'",
-                fluidRow( tags$div(style = "height:300px;",
-                     column(6, plotOutput("hist")) ,
-                     column(6, plotOutput("corr_ind"))
-                   
-               ))), 
-               
-               conditionalPanel(
-                   condition="!input.select_plot == 'Correlation Plot/Histogram'",
-                   fluidRow( 
-                       plotOutput("plot_choice")
-               ))
+             conditionalPanel(
+                condition=("input.radio_dep_choice== 4"),
+                dataTableOutput("data")
+              )
     )
 )
-
+   
 model_layout = fluidRow()
 
 
 #List the tabs
-tab_dependent = tabPanel("Dependent Variables",
+tab_dependent = tabPanel(id="taba", "Exploratory Analysis",
                          dependent_layout_row1)
 
-tab_independent = tabPanel("Independent Variables",
-                           independent_layout)
-
-tab_model = tabPanel("Model and Recommendation",
+tab_model = tabPanel(id="tabb", "Model and Recommendation",
                      model_layout)
 
 
@@ -126,7 +93,7 @@ tab_model = tabPanel("Model and Recommendation",
 title_color=tags$head(tags$style(HTML('
             /* logo */
                 .skin-black .main-header .logo {
-                    background-color: #4B0082;},
+                    background-color: #white;},                  ## #4B0082;},
             /* logo when hovered */
                 .skin-black .main-header .logo:hover {
                     background-color: #4B0082;}
@@ -135,16 +102,18 @@ title_color=tags$head(tags$style(HTML('
 #Increase height of header
 header_height=tags$li(class = "dropdown",
                       tags$style(".main-header {max-height: 580px}"),
-                      tags$style(".main-header .logo {height: 50px}")
+                      tags$style(".main-header .logo {height: 70px}")
 )
 
 #Add logo to header
-title_logo=span(column(1, tags$img(src='logo.jpg', height='50', width='150', border='0', 
-                                   style='margin-left:-2px; padding:0; margin:0; display:block; font-size:0')), 
+title_logo=span(column(1, tags$img(src='kellogg_logo.jpg', height='40', width='260', border='0', 
+                                   style='margin-left:-10px; padding:0px 0px; margin-top:10px; 
+                                   display:block; font-size:0')), 
                 column(8, class="title-box",
-                       tags$h2(class="primary-title", style='margin-top:10px; margin-left:10px; color:white; 
+                       tags$h2(class="primary-title", style='margin-top:20px; margin-left:470px; 
+                       color:#4B0082; 
                                font-size:8', 
-                               "SINTER PLANT PROJECT")
+                               "SINTER PLANT ANALYSIS")
                 )
 )
 
@@ -162,7 +131,6 @@ shinyUI(dashboardPage(skin="black",
                                 style='margin-top:2px; margin-left:10px; color:black; 
                                       font-size:10; font-weight:bold'),     
                               tab_dependent,
-                              tab_independent,
                               tab_model
                           ) 
                       )
