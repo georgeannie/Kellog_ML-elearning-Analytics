@@ -1,4 +1,4 @@
-order,Timestamp,Overall_Efficiency,Internal_Return_Fines,External_Return_Fine,Shatter_Index
+order,Timestamp,Overall_Efficiency,%Internal_Return_Fine,%External_Return_Fine,Shatter_Index
 1,4/1/2017 0:00,49.18,11.95,18,95.93
 2,4/1/2017 0:05,,,,
 3,4/1/2017 0:10,,,,

@@ -7,29 +7,22 @@ library(stringr)
 source("sinter_function.R")
 
 sinter= read_rename_sinter()
+choice_feed = names(feed_data())
 
-#PLOTS
-#Correlation plot for dependent variables                                
-corr_plot_dep= plotOutput('correlation_dependent', height="400px", width = 'auto')
-
-#Histogram dependent
-hist_dep  =   plotOutput('hist_dependent', width = "auto", height="350px")
-
-#Scatter plot - dependent vs kpi
-scatter_dep =plotOutput('scatter_dependent', width = "auto", height="350px")
 
 #radio button potential dependent
 #1. choice of dependent var
 radio_dep = radioButtons("radio_dep_choice", "Potential Dependent Variables Plots", 
                           choices = list("Histogram" = 1, 
                                          "Correlation matrix" =2,
-                                         "Summary" = 3, 
-                                         "Data" =4),
+                                         "Data Summary" = 3, 
+                                         "Overall Plant Summary" =4),
                           selected = 1)
 
 #Tab layouts
 #1. NavBar Menu= Dependent variables
 #a. Stationary layout - change panel based on choice
+
 dependent_layout_row1 = fluidRow( 
     column(width=2, 
            wellPanel(radio_dep)
@@ -37,12 +30,13 @@ dependent_layout_row1 = fluidRow(
     column(width=10, 
              conditionalPanel(
                  condition="input.radio_dep_choice == 1", 
+                 
                  fluidRow(selectInput("plant", "Select Plant:", 
                                            choices=c('Plant 1' =1, 
                                                      'Plant 2' =2, 
                                                      'Plant 3' = 3,
-                                                     'Plant 4'  = 4)),
-                                            selected=choices[[1]]),
+                                                     'Plant 4'  = 4))
+                         ),
                  fluidRow(
                    box(title="", 
                      solidHeader = TRUE, width="auto", 
@@ -50,12 +44,12 @@ dependent_layout_row1 = fluidRow(
                  )),
              conditionalPanel(
                  condition=("input.radio_dep_choice == 2"), 
-                 fluidRow(selectInput("plant", "Select Plant:", 
+                 fluidRow(selectInput("plant_tab2", "Select Plant:", 
                                       choices=c('Plant 1' =1, 
                                                 'Plant 2' =2, 
                                                 'Plant 3' = 3,
-                                                'Plant 4'  = 4)),
-                          selected=choices[[1]]),
+                                                'Plant 4'  = 4))
+                 ),
                  fluidRow(
                      box(title="", 
                          solidHeader = TRUE, width="auto",
@@ -66,24 +60,141 @@ dependent_layout_row1 = fluidRow(
                      solidHeader = TRUE, width="auto",
                      plotOutput("correlation_matrix", width = "auto", height="400"))
                 )),
+             
              conditionalPanel(
                condition=("input.radio_dep_choice == 3"),
-                 dataTableOutput("summary")
-                 ),
-
+               fluidRow(selectInput("plant_tab3", "Select Plant:", 
+                                    choices=c('Plant 1' = 1, 
+                                              'Plant 2' = 2, 
+                                              'Plant 3' = 3,
+                                              'Plant 4' = 4))
+               ),
+               fluidRow(
+                   dataTableOutput("summary")
+                 )
+             ),
              conditionalPanel(
                 condition=("input.radio_dep_choice== 4"),
-                dataTableOutput("data")
-              )
+                tabsetPanel(
+                    tabPanel(id="overall", "Overall Plant Summary",
+                             h3(style="color:navy; font-weight:bold", "Number of Observations"),
+                             dataTableOutput("data_no"), br(),
+                             h3(style="color:navy; font-weight:bold", "Mean"),
+                             dataTableOutput("data_mean"), br(),
+                             
+                             h3(style="color:navy; font-weight:bold", "Standard Deviation"),
+                             dataTableOutput("data_sd"), br(),
+                             h3(style="color:navy; font-weight:bold", "Number of missing data"),
+                             dataTableOutput("data_na")),
+                    tabPanel("Sample Data",
+                             fluidRow(selectInput("plant_tab4", "Select Plant:", 
+                                                  choices=c('Plant 1' =1, 
+                                                            'Plant 2' =2, 
+                                                            'Plant 3' = 3,
+                                                            'Plant 4' = 4))
+                             ),
+                             fluidRow(
+                                 dataTableOutput("data_plant")
+                             )
+                    )
+                    
+                ))
     )
 )
-   
+
+section_select = selectInput("section_select", "Select Input Section of Sinter:",
+                             choices = c("Feed" = 1,
+                                              "Ignition Hood" =2,
+                                              "Sinter Bed" = 3,
+                                              "Stack" = 4,
+                                              "ESP"  = 5,
+                                              "Cooler Bed"  = 6),
+                            selected=1
+                                              )
+
+feed_choices=c("Select All", names(feed_data()))
+ignition_choices=c("Select All", names(ignition_data()))
+stack_choices =c("Select All", names(stack()))
+sinter_choices = c("Select All", names(sinter_bed()))
+esp_choices = c("Select All", names(esp()))
+cooler_choices = c("Select All", names(cooler()))
+
+independent_layout_row1 = fluidRow(
+    tabsetPanel(
+        tabPanel(id="ind_summary", "Summary Table",
+                 fluidRow(column(width=3, section_select)),
+                 fluidRow(column(width=12,
+                    conditionalPanel(
+                        condition="input.section_select == 1",
+                        dataTableOutput("data_feed")
+                    ),
+                    conditionalPanel(
+                        condition="input.section_select == 2",
+                        dataTableOutput("ignition_hood")
+                    ),
+                    conditionalPanel(
+                        condition="input.section_select == 3",
+                        dataTableOutput("sinter_bed")
+                    ),
+                    conditionalPanel(
+                        condition="input.section_select == 4",
+                        dataTableOutput("stack")
+                    ),
+                    conditionalPanel(
+                        condition="input.section_select == 5",
+                        dataTableOutput("esp")
+                    ),
+                    conditionalPanel(
+                        condition="input.section_select == 6",
+                        dataTableOutput("cooler")
+                    ))
+                )
+        ),
+          tabPanel("Correlation",
+                   column(3, 
+                          wellPanel(
+                              selectizeInput("in_feed", "Select variables for Feed", 
+                                        choices=feed_choices,
+                                        multiple=TRUE, selected=feed_choices[1]),
+                              
+                              selectizeInput("in_ignition", "Select variables for Ignition Hood", 
+                                         choices=ignition_choices,
+                                         multiple=TRUE),
+                              
+                              selectizeInput("in_sinter_bed", "Select variables for Sinter Bed", 
+                                      choices=sinter_choices,
+                                      multiple=TRUE),
+                              
+                             selectizeInput("in_stack", "Select variables for Stack", 
+                                 choices=stack_choices,
+                                 multiple=TRUE),
+                             
+                             selectizeInput("in_esp", "Select variables for ESP", 
+                                    choices=esp_choices,
+                                     multiple=TRUE),
+                             
+                             selectizeInput("in_cooler", "Select variables for Cooler Bed", 
+                                      choices=cooler_choices,
+                                      multiple=TRUE)
+                             ) 
+                        ),
+                   column(9, 
+                          plotOutput("corrPlot", height = 600, width="auto"),
+                          uiOutput("warning")
+                          )
+          )
+    )
+)
+
 model_layout = fluidRow()
 
 
 #List the tabs
-tab_dependent = tabPanel(id="taba", "Exploratory Analysis",
+tab_dependent = tabPanel(id="taba", "Exploratory Analysis - Dependent Variables",
                          dependent_layout_row1)
+
+tab_independent = tabPanel(id="tabb", "Exploratory Analysis - Independent Variables",
+                         independent_layout_row1)
 
 tab_model = tabPanel(id="tabb", "Model and Recommendation",
                      model_layout)
@@ -107,7 +218,7 @@ header_height=tags$li(class = "dropdown",
 
 #Add logo to header
 title_logo=span(column(1, tags$img(src='kellogg_logo.jpg', height='40', width='260', border='0', 
-                                   style='margin-left:-10px; padding:0px 0px; margin-top:10px; 
+                                   style='margin-left:-10px; padding:0px 0px; margin-top:13px; 
                                    display:block; font-size:0')), 
                 column(8, class="title-box",
                        tags$h2(class="primary-title", style='margin-top:20px; margin-left:470px; 
@@ -131,6 +242,7 @@ shinyUI(dashboardPage(skin="black",
                                 style='margin-top:2px; margin-left:10px; color:black; 
                                       font-size:10; font-weight:bold'),     
                               tab_dependent,
+                              tab_independent,
                               tab_model
                           ) 
                       )
