@@ -4,6 +4,7 @@ library(ggplot2)
 library(dplyr)
 library(tidyr)
 library(stringr)
+set.seed(124)
 source("sinter_function.R")
 
 sinter= read_rename_sinter()
@@ -70,7 +71,7 @@ dependent_layout_row1 = fluidRow(
                                               'Plant 4' = 4))
                ),
                fluidRow(
-                   dataTableOutput("summary")
+                   DT::dataTableOutput("summary")
                  )
              ),
              conditionalPanel(
@@ -78,14 +79,14 @@ dependent_layout_row1 = fluidRow(
                 tabsetPanel(
                     tabPanel(id="overall", "Overall Plant Summary",
                              h3(style="color:navy; font-weight:bold", "Number of Observations"),
-                             dataTableOutput("data_no"), br(),
+                             DT::dataTableOutput("data_no"), br(),
                              h3(style="color:navy; font-weight:bold", "Mean"),
-                             dataTableOutput("data_mean"), br(),
+                             DT::dataTableOutput("data_mean"), br(),
                              
                              h3(style="color:navy; font-weight:bold", "Standard Deviation"),
-                             dataTableOutput("data_sd"), br(),
+                             DT::dataTableOutput("data_sd"), br(),
                              h3(style="color:navy; font-weight:bold", "Number of missing data"),
-                             dataTableOutput("data_na")),
+                             DT::dataTableOutput("data_na")),
                     tabPanel("Sample Data",
                              fluidRow(selectInput("plant_tab4", "Select Plant:", 
                                                   choices=c('Plant 1' =1, 
@@ -94,7 +95,7 @@ dependent_layout_row1 = fluidRow(
                                                             'Plant 4' = 4))
                              ),
                              fluidRow(
-                                 dataTableOutput("data_plant")
+                                 DT::dataTableOutput("data_plant")
                              )
                     )
                     
@@ -104,13 +105,12 @@ dependent_layout_row1 = fluidRow(
 
 section_select = selectInput("section_select", "Select Input Section of Sinter:",
                              choices = c("Feed" = 1,
-                                              "Ignition Hood" =2,
-                                              "Sinter Bed" = 3,
-                                              "Stack" = 4,
-                                              "ESP"  = 5,
-                                              "Cooler Bed"  = 6),
-                            selected=1
-                                              )
+                                          "Ignition Hood" =2,
+                                          "Sinter Bed" = 3,
+                                          "Stack" = 4,
+                                          "ESP"  = 5,
+                                          "Cooler Bed"  = 6),
+                            selected=1)
 
 feed_choices=c("Select All", names(feed_data()))
 ignition_choices=c("Select All", names(ignition_data()))
@@ -126,56 +126,57 @@ independent_layout_row1 = fluidRow(
                  fluidRow(column(width=12,
                     conditionalPanel(
                         condition="input.section_select == 1",
-                        dataTableOutput("data_feed")
+                        DT::dataTableOutput("data_feed")
                     ),
                     conditionalPanel(
                         condition="input.section_select == 2",
-                        dataTableOutput("ignition_hood")
+                        DT::dataTableOutput("ignition_hood")
                     ),
                     conditionalPanel(
                         condition="input.section_select == 3",
-                        dataTableOutput("sinter_bed")
+                        DT::dataTableOutput("sinter_bed")
                     ),
                     conditionalPanel(
                         condition="input.section_select == 4",
-                        dataTableOutput("stack")
+                        DT::dataTableOutput("stack")
                     ),
                     conditionalPanel(
                         condition="input.section_select == 5",
-                        dataTableOutput("esp")
+                        DT::dataTableOutput("esp")
                     ),
                     conditionalPanel(
                         condition="input.section_select == 6",
-                        dataTableOutput("cooler")
+                        DT::dataTableOutput("cooler")
                     ))
                 )
         ),
           tabPanel("Correlation",
                    column(3, 
                           wellPanel(
-                              selectizeInput("in_feed", "Select variables for Feed", 
+                              selectizeInput("in_feed", "Select variables for Feed",
                                         choices=feed_choices,
                                         multiple=TRUE, selected=feed_choices[1]),
-                              
-                              selectizeInput("in_ignition", "Select variables for Ignition Hood", 
+
+                              selectizeInput("in_ignition", "Select variables for Ignition Hood",
                                          choices=ignition_choices,
                                          multiple=TRUE),
-                              
-                              selectizeInput("in_sinter_bed", "Select variables for Sinter Bed", 
+
+                              selectizeInput("in_sinter_bed", "Select variables for Sinter Bed",
                                       choices=sinter_choices,
                                       multiple=TRUE),
-                              
-                             selectizeInput("in_stack", "Select variables for Stack", 
+
+                             selectizeInput("in_stack", "Select variables for Stack",
                                  choices=stack_choices,
                                  multiple=TRUE),
-                             
-                             selectizeInput("in_esp", "Select variables for ESP", 
+
+                             selectizeInput("in_esp", "Select variables for ESP",
                                     choices=esp_choices,
                                      multiple=TRUE),
-                             
-                             selectizeInput("in_cooler", "Select variables for Cooler Bed", 
+
+                             selectizeInput("in_cooler", "Select variables for Cooler Bed",
                                       choices=cooler_choices,
                                       multiple=TRUE)
+                             ###add button
                              ) 
                         ),
                    column(9, 
@@ -186,7 +187,54 @@ independent_layout_row1 = fluidRow(
     )
 )
 
-model_layout = fluidRow()
+model_layout = fluidRow(
+    tabsetPanel(
+        tabPanel("Linear Regression",
+                 column(3,
+                        wellPanel(selectInput("model_lm", "Select the linear regression model:", 
+                                              choices=c('Using complete observations' = 1, 
+                                                        'Removing columns with null values' = 2, 
+                                                        'Final model' = 3))
+                        )),
+                 column(5,
+                        plotOutput("feature_imp_lm", height="500px", width = "500px")
+                 ),
+                 column(4,
+                        tableOutput("results_lm")
+                 )  
+        ),
+        tabPanel("Random Forest Model",
+                 column(3,
+                        wellPanel(selectInput("model_rf", "Select the random forest model:", 
+                                              choices=c('Using complete observations' = 1, 
+                                                        'Removing columns with null values' = 2, 
+                                                        'Final model' = 3))
+                        )),
+                 column(5,
+                        
+                        plotOutput("feature_imp", height="500px", width = "500px")
+                 ),
+                 column(4,
+                        tableOutput("results")
+                 )  
+        ),
+        tabPanel("XgBoost",
+                 column(3,
+                        wellPanel(selectInput("model_xg", "Select the XgBoost model:", 
+                                              choices=c('All observations' = 4, 
+                                                        'Removing columns with null values' = 5, 
+                                                        'Final model' = 6))
+                        )),
+                 column(5,
+                        
+                        plotOutput("feature_imp_xg", height="500px", width = "500px")
+                 ),
+                 column(4,
+                        tableOutput("results_xg")
+                 )  
+        )
+    )
+)
 
 
 #List the tabs
@@ -217,7 +265,7 @@ header_height=tags$li(class = "dropdown",
 )
 
 #Add logo to header
-title_logo=span(column(1, tags$img(src='kellogg_logo.jpg', height='40', width='260', border='0', 
+title_logo=span(column(1, tags$img(src='Kellogg_logo.jpg', height='40', width='260', border='0', 
                                    style='margin-left:-10px; padding:0px 0px; margin-top:13px; 
                                    display:block; font-size:0')), 
                 column(8, class="title-box",

@@ -12,8 +12,11 @@ library(lubridate)
 library(data.table)
 library(DT)
 library(GGally)
-source("sinter_function.R")
+library(ranger)
+library(xgboost)
 
+source("sinter_function.R")
+set.seed(123)
 sinter= read_rename_sinter()
 
 shinyServer(function(input, output, session) {
@@ -51,18 +54,17 @@ shinyServer(function(input, output, session) {
              "4" = sinter[[4]]
       )
       
-       dep_sinter=sinter_list[, names(sinter_list) %in% c('Overall Efficiency', 
-                                             "%Internal Return Fine", 
-                                             "%External Return Fine", 
-                                             "Shatter Index")]
+       dep_sinter=sinter_list[, names(sinter_list) %in% c("Shatter Index",
+                                                       "%External Return Fine", 
+                                                      "%Internal Return Fine", 
+                                                      "Overall Efficiency")]
        dep_sinter[is.na(dep_sinter)]=0  
-       corr_dep = cor(dep_sinter)
+       corr_dep = cor(rev(dep_sinter))
        
-       p=ggcorrplot(corr_dep,  col=c("red", "blue", "gray"), hc.order = TRUE,
-                      type = "lower", lab=TRUE, legend.title = "", outline.color = "grey",
-                      show.diag = TRUE) +
+       p=ggcorrplot(corr_dep,  col=c("red", "white", "blue"),
+                      type = "lower", legend.title = "", outline.color = "grey",
+                      show.diag = TRUE, lab=TRUE) +
             ggtitle("Correlation of Potential Dependent Variables") +
-            
             theme(plot.title = element_text(hjust = 0.5, colour = "black", size=18, face='bold', 
                                             vjust=0.5))
        p
@@ -99,8 +101,6 @@ shinyServer(function(input, output, session) {
                  panel.grid = element_blank(),
                  axis.title.y=element_text(size=12, face="bold")
            )
-       
-       
        p1
    })
    
@@ -120,7 +120,10 @@ shinyServer(function(input, output, session) {
                                                 "Shatter Index")]
         
        dep_sinter=dep_sinter%>% gather(key, value)
-       
+       dep_sinter$key = factor(dep_sinter$key, levels=c("Overall Efficiency", 
+                                                        "%Internal Return Fine", 
+                                                        "%External Return Fine", 
+                                                        "Shatter Index")) 
        p=ggplot(dep_sinter, aes(x=value))+
            geom_histogram(color="white", fill="navyblue", position="identity")+
            facet_wrap( ~ key, scales = "free") + 
@@ -153,7 +156,7 @@ shinyServer(function(input, output, session) {
                                                          "%External Return Fine", 
                                                          "Shatter Index")]
       dep_summary=summary_table(dep_sinter)
-      DT::datatable(dep_summary)   
+      DT::datatable(dep_summary, options = list(dom = 't'))   
    })
    
    var6=function(){ 
@@ -176,7 +179,7 @@ shinyServer(function(input, output, session) {
                      t(apply(sinter_new[[4]], 2, function(x) (sum(!is.na(x))))))
       
       rownames(dep_no) = make.names(c("Plant 1", "Plant 2", "Plant 3", "Plant 4"))
-      datatable(dep_no,  options = list(dom = 't'))
+      DT::datatable(dep_no,  options = list(dom = 't'))
    })
    
    output$data_mean = renderDataTable({
@@ -187,7 +190,7 @@ shinyServer(function(input, output, session) {
                       t(round(apply(sinter_new[[4]], 2, mean, na.rm=TRUE), 2)))
       rownames(dep_mean) = make.names(c("Plant 1", "Plant 2", "Plant 3", "Plant 4"))
       
-      datatable(dep_mean,  options = list(dom = 't'))
+      DT::datatable(dep_mean,  options = list(dom = 't'))
    })
    
    output$data_sd = renderDataTable({
@@ -197,7 +200,7 @@ shinyServer(function(input, output, session) {
                      t(round(apply(sinter_new[[3]], 2, sd, na.rm=TRUE), 2)),
                      t(round(apply(sinter_new[[4]], 2, sd, na.rm=TRUE), 2)))
       rownames(dep_sd) = make.names(c("Plant 1", "Plant 2", "Plant 3", "Plant 4"))
-      datatable(dep_sd,  options = list(dom = 't'))
+      DT::datatable(dep_sd,  options = list(dom = 't'))
    })
       
    output$data_na = renderDataTable({
@@ -208,7 +211,7 @@ shinyServer(function(input, output, session) {
                      t(apply(sinter_new[[4]], 2, function(x) sum(is.na(x)))))
       rownames(dep_na) = make.names(c("Plant 1", "Plant 2", "Plant 3", "Plant 4"))
       
-      datatable(dep_na,  options = list(dom = 't'))
+      DT::datatable(dep_na,  options = list(dom = 't'))
    })
   
    output$data_plant = renderDataTable({
@@ -221,45 +224,43 @@ shinyServer(function(input, output, session) {
                            "4" = sinter[[4]]
       )
       
-      datatable(sinter_list)   
+      DT::datatable(sinter_list)   
    })
    
    output$data_feed = renderDataTable({
       sinter=feed_data()
       dep_summary=summary_table(sinter)
-      datatable(dep_summary, options = list(dom = 't'))   
+      DT::datatable(dep_summary, options = list(dom = 't'))   
    })
    
    output$ignition_hood = renderDataTable({
       sinter=ignition_data()   
       dep_summary=summary_table(sinter)
-      datatable(dep_summary, options = list(dom = 't'))   
+      DT::datatable(dep_summary, options = list(dom = 't'))   
    })
    
    output$sinter_bed = renderDataTable({
       sinter=sinter_bed()
       dep_summary=summary_table(sinter)
-      datatable(dep_summary, options = list(dom = 't'))   
+      DT::datatable(dep_summary, options = list(dom = 't'))   
    })
-   
    
    output$stack = renderDataTable({
       sinter=stack()
       dep_summary=summary_table(sinter)
-      datatable(dep_summary, options = list(dom = 't'))   
+      DT::datatable(dep_summary, options = list(dom = 't'))   
    })
    
    output$esp = renderDataTable({
       sinter=esp()
       dep_summary=summary_table(sinter)
-      datatable(dep_summary, options = list(dom = 't'))   
+      DT::datatable(dep_summary, options = list(dom = 't'))   
    })
-   
    
    output$cooler = renderDataTable({
       sinter=cooler()
       dep_summary=summary_table(sinter)
-      datatable(dep_summary, options = list(dom = 't'))   
+      DT::datatable(dep_summary, options = list(dom = 't'))   
    })
    
    feed_choices=c("Select All", names(feed_data()))
@@ -411,7 +412,9 @@ shinyServer(function(input, output, session) {
                           type="upper",
                            tl.srt =45, #Text label color and rotation,
                           addCoef.col = "black", # Add coefficient of correlation
-                          diag=FALSE ))
+                          diag=FALSE,
+                          title="Correlation of Independent Variables",
+                          mar=c(0,0,1,0)))
       
    })
    
@@ -430,4 +433,152 @@ shinyServer(function(input, output, session) {
       }
    })
    
+   var_imp = reactive({
+      input$model_rf
+   })
+   
+   var_imp_xg = reactive({
+      input$model_xg
+   })
+   
+   model = function(rds_model){
+      readRDS(rds_model)
+   }
+   
+   model_def= function(var_imp){
+      model=switch(var_imp,  
+                     "1" = model("./models/complete_case_rf.RDS"),
+                     "2" = model("./models/no_na_rf.rds"),
+                     "3" = model("./models/final_model_rf.RDS"),
+                     "4" = model("./models/xgb_all.RDS"))
+      return(model)
+   }
+   
+   set_imp=function(model){
+      
+      var=sort(model$variable.importance, decreasing=TRUE) #Sort the Variable importance; Co2 and humidity most important
+      
+      var=as.data.frame(var)
+      var$varnames = rownames(var)
+      rownames(var) = NULL
+      return(var)
+   }
+
+   model_plot_rf=function(model, var_imp){
+      model_typ=model_def(var_imp)
+      
+      df=set_imp(model_typ)
+      p=ggplot(df , 
+             aes(x=reorder(varnames, var), y=var, fill=var)) + 
+         geom_bar(stat="identity", position="dodge") + 
+         coord_flip() +
+         ggtitle("Information Value Summary") +
+         xlab("") +
+         ylab("") +
+         guides(fill=F)+
+         scale_fill_gradient(low="red", high="blue") +
+            theme(legend.title = element_blank(), legend.position = "none") 
+            
+      p
+   }
+  
+   model_plot_xg=function(model, var_imp, train){
+      model_typ=model_def(var_imp)
+      print(head(train))
+      dtrain=xgb.DMatrix(as.matrix(train[, !names(train) %in% c("IRF_PCT")]),
+                         label=train[, 1])
+      print(colnames(dtrain))
+      
+      imp = xgb.importance(colnames(dtrain),model=model_typ)
+      xgb.ggplot.importance(importance_matrix = imp, n_cluster=1) + 
+         theme(legend.position = "none")
+      
+   }
+   
+   output$feature_imp = renderPlot({
+        var_imp = var_imp()
+         
+        switch(var_imp,
+            "1" = model_plot_rf("1", var_imp),
+            "2" = model_plot_rf("2", var_imp),
+            "3" = model_plot_rf("3", var_imp)
+         )
+   })
+   
+   output$feature_imp_xg= renderPlot({
+      var_imp = var_imp_xg()
+      data=data(var_imp)
+      test_train =  xgtest_train(data)
+      data_train = test_train[[1]]
+      
+      switch(var_imp,
+             "4" = model_plot_xg("4", var_imp, data_train)
+      )
+   })
+   
+no_nulls= c("IH_COMBUSTION_AIR_TEMP",   "IH_MIXED_GAS_TEMP"   ,     "WASTE_WATER_FLOW"   ,    
+               "TEMP_BEFORE_ESP"       ,   "WINDBOX_1_PRESSURE"   ,    "WINDBOX_12_PRESSURE"  ,   
+               "TOTAL_BMIX_FLOW"     ,     "TOTAL_CLIME_FLOW"    ,    
+               "TOTAL_LIMESTONE_FLOW"  ,   "TOTAL_SOLID_FUEL_FLOW",    "CO"                  ,    
+               "O2"                  ,     "MACHINE_SPEED"       ,    
+               "COOLER_SPEED"        ,     "WASTE_GAS_FAN_RPM"   ,    
+               "IH_MIXED_GAS_FLOW"     ,   "SINTER_TEMP_SM_DISCH",    
+               "IH_TEMP_M1"            ,   "SINTER_BED_HEIGHT"   ,     "FEO"                 ,    
+               "CAO"                  ,    "AL2O3"              ,      "TIO2"               ,     
+               "K2O"                  ,    "FE", "IRF_PCT"  ) 
+   
+final_result =  c("IH_COMBUSTION_AIR_TEMP",   "IH_MIXED_GAS_TEMP"   ,         
+                     "TEMP_BEFORE_ESP"       ,   "WINDBOX_1_PRESSURE"   ,    "WINDBOX_12_PRESSURE"  ,   
+                     "TOTAL_BMIX_FLOW"     ,     "TOTAL_CLIME_FLOW"    ,    
+                     "TOTAL_LIMESTONE_FLOW"  ,   "TOTAL_SOLID_FUEL_FLOW",        
+                     "O2"                  ,     "MACHINE_SPEED"       ,    
+                     "COOLER_SPEED"        ,     "WASTE_GAS_FAN_RPM"   ,    
+                     "IH_MIXED_GAS_FLOW"     ,   "SINTER_TEMP_SM_DISCH",    
+                     "SINTER_BED_HEIGHT"   ,     "FEO"                 ,    
+                     "CAO"                  ,    "AL2O3"              ,        
+                     "FE" , "IRF_PCT" )
+   
+   data = function(var_imp){
+      sinter=read_rename_final_data()
+      names(sinter)=toupper(gsub(" ", "_", names(sinter)))
+      
+      #Get train and test data
+      data = switch(var_imp,
+                    "1"= (sinter[complete.cases(sinter), ]),
+                    "2"= sinter[, no_nulls],
+                    "3" = (sinter[, final_result]),
+                    "4" = sinter[,c(4, 19:48)])
+      return(data)
+   }
+   
+   output$results = renderTable({
+         var_imp = var_imp()
+         data=data(var_imp)
+         print(head(data))
+         
+         test_train =  test_train(data)
+         
+         #Get model
+         model = model_def(var_imp)
+         print("Model")
+         test=test_train[[2]]
+         train=test_train[[1]]
+         print(head(test))
+         
+         results_df_rf(test, train, model)
+   })
+   
+   output$results_xg  = renderTable({
+      var_imp=var_imp_xg()
+      data=data(var_imp)
+      test_train =  xgtest_train(data)
+      
+      #Get model
+      model = model_def(var_imp)
+      
+      test=test_train[[2]]
+      train=test_train[[1]]
+      
+      results_df_xg(test, train, model)
+   })
 }) 

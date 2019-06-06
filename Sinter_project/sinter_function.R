@@ -2,6 +2,8 @@ library(dplyr)
 library(stringr)
 library(lubridate)
 library(htmltools)
+library(Metrics)
+set.seed(123)
 read_rename_sinter = function(){
   folder <- "./data/"  
   file_list = list.files(path=folder, pattern="*.csv", full.names = T)
@@ -12,7 +14,7 @@ read_rename_sinter = function(){
            read.csv(file_list[i], sep=','))
     names(plant[[i]])=str_to_title(gsub("_", " ", names(plant[[i]])))
     plant[[i]] = plant[[i]] %>%
-      mutate(Timestamp=as.POSIXct(dmy_hm(Timestamp))) %>%
+      mutate(Timestamp=as.character(as.POSIXct(dmy_hm(Timestamp)))) %>%
         plyr::rename(c("X.internal Return Fine" ="%Internal Return Fine",
                        "X.external Return Fine" ="%External Return Fine"))
       
@@ -21,7 +23,7 @@ read_rename_sinter = function(){
 }
 
 read_rename_final_data = function(){
-  sinter_full = read.csv("./data/syntheticData_20190531.csv",
+  sinter_full = read.csv("./data/syntheticData_20190603.csv",
                     stringsAsFactors = FALSE, header = TRUE)
 
   #Remove underscores and change column names to title format for display
@@ -42,8 +44,8 @@ summary_table = function(input_table) {
   
   dep_summary=data.table("Variables" = names(input_table),
                          "# of Observations" = dep_no,
-                         "Standard Deviation" = round(dep_sd,2),
                          'Mean' = round(dep_mean, 2),
+                         "Standard Deviation" = round(dep_sd,2),
                          '# of Missing data' = dep_na,
                          'Median' = round(dep_median,2),
                          "Minimum Value" = dep_min,
@@ -94,4 +96,110 @@ cooler=function(){
     select("Cooler Pressure",  "Cooler Speed",  "Cooler Dischrg Temp"                             
     )
   
+}
+
+test_train=function(data){
+  index = sample(1:nrow(data),size = 0.7*nrow(data))
+  train = data[index,] 
+  test = data [-index,]
+  list(train, test)
+ 
+}
+
+xgtest_train=function(data){
+  index = sample(1:nrow(data),size = 0.7*nrow(data))
+  print(names(data))
+  xgtrain = data[index,] 
+  xgtest = data [-index,]
+  
+  train = as.matrix(model.matrix(~.-1,data=xgtrain)) 
+  train_label <- xgtrain[,'IRF_PCT'] 
+  
+  test <- as.matrix(model.matrix(~.-1,data=xgtest))
+  test_label <- xgtest[,'IRF_PCT'] 
+  
+  return(list(train, test))
+  
+}
+
+r2_test = function(test_data, test_pred) {
+  residuals = test_data$IRF_PCT - test_pred
+  test_IRF_pct_mean = mean(test_data$IRF_PCT)
+  tss =  sum((test_data$IRF_PCT - test_IRF_pct_mean)^2 )
+  rss =  sum(residuals^2)
+  
+  # Calculate R-squared
+  rsq  =  1 - (rss/tss)
+  rsq
+}
+
+rsq=function(dataset, pred){
+  
+  residuals = dataset[,"IRF_PCT"]- pred
+  test_IRF_pct_mean = mean(dataset[, "IRF_PCT"])
+  tss =  sum((dataset[,"IRF_PCT"] - test_IRF_pct_mean)^2 )
+  rss =  sum(residuals^2)
+  
+  # Calculate R-squared
+  rsq  =  1 - (rss/tss)
+  return(rsq)
+  
+}
+
+results_df_rf = function(test, train, model){
+  
+  test_pred = predict(model,test)$prediction
+  print(head(test_pred))
+  
+  RMSE_TEST=rmse(test_pred, test[,"IRF_PCT"])
+  print(RMSE_TEST)
+  
+  RMSE_TRAIN = model$prediction.error
+     
+  rsq_test=rsq(test, test_pred)
+  rsq_train = model$r.squared
+ 
+  a=data.frame("Dataset" = c("train", 
+                             "test"),
+               "No of observation"= c(dim(train)[1], 
+                                      dim(test)[1]),
+               "RMSE" = c(RMSE_TRAIN, 
+                          RMSE_TEST),
+               "R-square" = c(rsq_train, rsq_test ))
+  return(a)
+}
+
+results_df_xg = function(test, train, model){
+  
+  dtrain=xgb.DMatrix(as.matrix(train[,-1]),label=train[,1] )
+  dtest=xgb.DMatrix(as.matrix(test[,-1]),label=test[,1])
+  
+  test_pred = predict(model,newdata = dtest, class='response')
+  train_pred = predict(model,newdata = dtrain, class='response')
+  
+  print(head(test_pred))
+  RMSE_TEST=rmse(predicted=test_pred, actual=test[,1])
+  print(RMSE_TEST)
+  
+  RMSE_TRAIN = rmse(predicted=train_pred, actual=train[,1])
+  print(RMSE_TRAIN)
+  
+  rsq_test=rsq(test, test_pred)
+  rsq_train = rsq(train, train_pred)
+  # residuals = test[,1]- test_pred
+  # test_IRF_pct_mean = mean(test[,1])
+  # tss =  sum((test[,1] - test_IRF_pct_mean)^2 )
+  # rss =  sum(residuals^2)
+  # 
+  # Calculate R-squared
+  # rsq  =  1 - (rss/tss)
+  # 
+  a=data.frame("Dataset" = c("train", 
+                             "test"),
+               "No of observation"= c(dim(train)[1], 
+                                      dim(test)[1]),
+               "RMSE" = c(RMSE_TRAIN, 
+                          RMSE_TEST),
+               "R-square" = c(rsq_train, rsq_test ))
+  return(a)
 }
