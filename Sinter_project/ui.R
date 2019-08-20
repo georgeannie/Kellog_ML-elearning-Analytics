@@ -4,7 +4,7 @@ library(ggplot2)
 library(dplyr)
 library(tidyr)
 library(stringr)
-set.seed(124)
+set.seed(123)
 source("sinter_function.R")
 
 sinter= read_rename_sinter()
@@ -104,13 +104,14 @@ dependent_layout_row1 = fluidRow(
 )
 
 section_select = selectInput("section_select", "Select Input Section of Sinter:",
-                             choices = c("Feed" = 1,
+                             choices = c("All" = 0,
+                                          "Feed" = 1,
                                           "Ignition Hood" =2,
                                           "Sinter Bed" = 3,
                                           "Stack" = 4,
                                           "ESP"  = 5,
                                           "Cooler Bed"  = 6),
-                            selected=1)
+                            selected=0)
 
 feed_choices=c("Select All", names(feed_data()))
 ignition_choices=c("Select All", names(ignition_data()))
@@ -119,11 +120,16 @@ sinter_choices = c("Select All", names(sinter_bed()))
 esp_choices = c("Select All", names(esp()))
 cooler_choices = c("Select All", names(cooler()))
 
+
 independent_layout_row1 = fluidRow(
     tabsetPanel(
         tabPanel(id="ind_summary", "Summary Table",
                  fluidRow(column(width=3, section_select)),
                  fluidRow(column(width=12,
+                    conditionalPanel(
+                       condition="input.section_select == 0",
+                       DT::dataTableOutput("all_input")
+                    ),
                     conditionalPanel(
                         condition="input.section_select == 1",
                         DT::dataTableOutput("data_feed")
@@ -191,25 +197,34 @@ model_layout = fluidRow(
     tabsetPanel(
         tabPanel("Linear Regression",
                  column(3,
-                        wellPanel(selectInput("model_lm", "Select the linear regression model:", 
-                                              choices=c('Using complete observations' = 1, 
-                                                        'Removing columns with null values' = 2, 
-                                                        'Final model' = 3))
-                        )),
-                 column(5,
-                        plotOutput("feature_imp_lm", height="500px", width = "500px")
-                 ),
-                 column(4,
-                        tableOutput("results_lm")
-                 )  
-        ),
+                        wellPanel(radioButtons("lm_choice", "Linear model results", 
+                                               choices=c('Correlation coefficients' = 1, 
+                                                         'Model Performance' = 2),
+                                               selected = 1))
+                        ),
+                 column(9,
+                        conditionalPanel(
+                            condition="input.lm_choice == 1",
+                            DT::dataTableOutput("coeff_lm")
+                        ),
+                        conditionalPanel(
+                          condition="input.lm_choice == 2",
+                          column(7,
+                             plotOutput("feature_imp_lm", height="400px", width="auto")
+                          ),
+                          column(4,
+                             tableOutput("results_lm")
+                          )  
+                        )
+                 )),
         tabPanel("Random Forest Model",
                  column(3,
-                        wellPanel(selectInput("model_rf", "Select the random forest model:", 
-                                              choices=c('Using complete observations' = 1, 
-                                                        'Removing columns with null values' = 2, 
-                                                        'Final model' = 3))
-                        )),
+                        wellPanel(radioButtons("model_rf", "Select the random forest model:", 
+                                               choices=c('Using complete observations' = 1, 
+                                                         'Removing columns with null values' = 2, 
+                                                         'Final model' = 3),
+                                               selected = 1))
+                        ),
                  column(5,
                         
                         plotOutput("feature_imp", height="500px", width = "500px")
@@ -220,10 +235,8 @@ model_layout = fluidRow(
         ),
         tabPanel("XgBoost",
                  column(3,
-                        wellPanel(selectInput("model_xg", "Select the XgBoost model:", 
-                                              choices=c('All observations' = 4, 
-                                                        'Removing columns with null values' = 5, 
-                                                        'Final model' = 6))
+                        wellPanel(radioButtons("model_xg", "Select the XgBoost model:", 
+                                              choices=c('All observations' = 4), selected=4)
                         )),
                  column(5,
                         

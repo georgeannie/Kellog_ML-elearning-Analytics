@@ -6,7 +6,6 @@ library(dplyr)
 library(tidyr)
 library(ggcorrplot)
 library(corrplot)
-library(plotly)
 library(reshape2)
 library(lubridate)
 library(data.table)
@@ -227,48 +226,87 @@ shinyServer(function(input, output, session) {
       DT::datatable(sinter_list)   
    })
    
+   
+   output$all_input = renderDataTable({
+      feed=feed_data()
+      feed[, "Section"]="Feed"
+      feed_summary = summary_table(feed)
+      
+      ignition=ignition_data()
+      ignition[, "Section"]="Ignition"
+      ignition_summary = summary_table(ignition)
+      
+      sinter_bed=sinter_bed()
+      sinter_bed[, "Section"]="Sinter Bed"
+      sinterbed_summary = summary_table(sinter_bed)
+      
+      stack=stack()
+      stack[, "Section"]="Stack"
+      stack_summary = summary_table(stack)
+      
+      esp=esp()
+      esp[, "Section"]="ESP"
+      esp_summary = summary_table(esp)
+      
+      cooler=cooler()
+      cooler[, "Section"]="Cooler Bed"
+      cooler_summary = summary_table(cooler)
+      
+      dep_summary= rbind(feed_summary, ignition_summary, sinterbed_summary, stack_summary, 
+                    esp_summary, cooler_summary)
+      tail(dep_summary)
+      DT::datatable(dep_summary)   
+   })
+   
    output$data_feed = renderDataTable({
       sinter=feed_data()
+      sinter[, "Section"]="Feed"
+      
       dep_summary=summary_table(sinter)
       DT::datatable(dep_summary, options = list(dom = 't'))   
    })
    
    output$ignition_hood = renderDataTable({
       sinter=ignition_data()   
+      sinter[, "Section"]="Ignition"
       dep_summary=summary_table(sinter)
       DT::datatable(dep_summary, options = list(dom = 't'))   
    })
    
    output$sinter_bed = renderDataTable({
       sinter=sinter_bed()
+      sinter[, "Section"]="Sinter Bed"
       dep_summary=summary_table(sinter)
       DT::datatable(dep_summary, options = list(dom = 't'))   
    })
    
    output$stack = renderDataTable({
       sinter=stack()
+      sinter[, "Section"]="Stack"
       dep_summary=summary_table(sinter)
       DT::datatable(dep_summary, options = list(dom = 't'))   
    })
    
    output$esp = renderDataTable({
       sinter=esp()
+      sinter[, "Section"]="ESP"
       dep_summary=summary_table(sinter)
       DT::datatable(dep_summary, options = list(dom = 't'))   
    })
    
    output$cooler = renderDataTable({
+      sinter[, "Section"]="Cooler Bed"
       sinter=cooler()
       dep_summary=summary_table(sinter)
       DT::datatable(dep_summary, options = list(dom = 't'))   
    })
    
-   feed_choices=c("Select All", names(feed_data()))
-   ignition_choices=c("Select All", names(ignition_data()))
-   stack_choices =c("Select All", names(stack()))
-   sinter_choices = c("Select All", names(sinter_bed()))
-   esp_choices = c("Select All", names(esp()))
-   cooler_choices = c("Select All", names(cooler()))
+   feed_choices=c("Select All", names(feed_data())[-length(feed_data())])
+   ignition_choices=c("Select All", names(ignition_data())[-length(ignition_data())])
+   stack_choices =c("Select All", names(stack())[-length(stack())])
+   sinter_choices = c("Select All", names(sinter_bed())[-length(sinter_bed())])
+   esp_choices = c("Select All", names(esp())[-length(esp())])
+   cooler_choices = c("Select All", names(cooler())[-length(cooler())])
 
    # 
    observe({
@@ -450,7 +488,8 @@ shinyServer(function(input, output, session) {
                      "1" = model("./models/complete_case_rf.RDS"),
                      "2" = model("./models/no_na_rf.rds"),
                      "3" = model("./models/final_model_rf.RDS"),
-                     "4" = model("./models/xgb_all.RDS"))
+                     "4" = model("./models/xgb_all.RDS"),
+                     "5" = model("./models/lm_all.rds"))
       return(model)
    }
    
@@ -484,13 +523,13 @@ shinyServer(function(input, output, session) {
   
    model_plot_xg=function(model, var_imp, train){
       model_typ=model_def(var_imp)
-      print(head(train))
+      
       dtrain=xgb.DMatrix(as.matrix(train[, !names(train) %in% c("IRF_PCT")]),
                          label=train[, 1])
-      print(colnames(dtrain))
       
       imp = xgb.importance(colnames(dtrain),model=model_typ)
       xgb.ggplot.importance(importance_matrix = imp, n_cluster=1) + 
+         geom_bar(fill="blue",width=0.5,stat="identity")  + 
          theme(legend.position = "none")
       
    }
@@ -554,16 +593,13 @@ final_result =  c("IH_COMBUSTION_AIR_TEMP",   "IH_MIXED_GAS_TEMP"   ,
    output$results = renderTable({
          var_imp = var_imp()
          data=data(var_imp)
-         print(head(data))
          
          test_train =  test_train(data)
          
          #Get model
          model = model_def(var_imp)
-         print("Model")
          test=test_train[[2]]
          train=test_train[[1]]
-         print(head(test))
          
          results_df_rf(test, train, model)
    })
@@ -581,4 +617,69 @@ final_result =  c("IH_COMBUSTION_AIR_TEMP",   "IH_MIXED_GAS_TEMP"   ,
       
       results_df_xg(test, train, model)
    })
+   
+   
+   output$coeff_lm =renderDataTable({
+      lm=model_def("5")
+     
+      DT::datatable(data.frame("Coefficients" = sort(round(lm$coefficients, 2), decreasing =TRUE)), 
+                     options = list(sDom  = '<"top">flrt<"bottom">ip'))
+   })
+   
+   output$feature_imp_lm = renderPlot({
+      lm=model_def("5")
+      sinter=read_rename_final_data()
+      names(sinter)=toupper(gsub(" ", "_", names(sinter)))
+      sinter=sinter %>%
+         plyr::rename(c("FEO" = "FeO",
+                      "FE" = "Fe"))
+      sinter$pred=predict(lm, sinter )
+      ggplot(sinter, aes(y=IRF_PCT, x=pred)) +
+         geom_point(col="navyblue") +
+         geom_smooth(method = "lm", se = FALSE, color = "red") + 
+         xlab("Predicted (IRF PCT)") + 
+         ylab("Actual (IRF PCT)") +
+         ggtitle("Predicted vs Actuals") + 
+         theme_light() +
+         theme(plot.title = element_text(hjust = 0.5), 
+               text=element_text(size=12, 
+                            family="Serif"),
+               axis.ticks = element_blank(),
+               panel.grid = element_blank()) 
+      
+      
+   })   
+   
+   output$results_lm =renderTable({
+      lm=model_def("5")
+      sinter=read_rename_final_data()
+      names(sinter)=toupper(gsub(" ", "_", names(sinter)))
+      sinter=sinter %>%
+         plyr::rename(c("FEO" = "FeO",
+                        "FE" = "Fe"))
+      
+      data=test_train(sinter)
+      test=data[[2]]
+      train=data[[1]]
+      
+      train_pred= predict(lm, train)
+      test_pred=predict(lm, test)
+      
+      train_rmse = rmse(actual = train$IRF_PCT, train_pred)
+      test_rmse =  rmse(actual = test$IRF_PCT, test_pred)
+      
+      rsq_train = rsq(train, train_pred)
+      rsq_test = rsq(test, test_pred)
+      
+      a=data.frame("Dataset" = c("train", 
+                                 "test"),
+                   "No of observation"= c(dim(train)[1], 
+                                          dim(test)[1]),
+                   "RMSE" = c(train_rmse, 
+                              test_rmse),
+                   "R-square" = c(rsq_train, rsq_test ))
+      a
+      
+   })
+
 }) 

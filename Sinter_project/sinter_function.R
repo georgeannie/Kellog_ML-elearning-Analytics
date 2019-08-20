@@ -11,19 +11,20 @@ read_rename_sinter = function(){
   plant =list()
   for (i in 1:length(file_list)){
     plant[[i]]=assign(file_list[i], 
-           read.csv(file_list[i], sep=','))
+           read.csv(file_list[i], sep=',', stringsAsFactors = FALSE))
     names(plant[[i]])=str_to_title(gsub("_", " ", names(plant[[i]])))
     plant[[i]] = plant[[i]] %>%
-      mutate(Timestamp=as.character(as.POSIXct(dmy_hm(Timestamp)))) %>%
+      #mutate(Timestamp=(as.character(as.POSIXct(dmy_hm(Timestamp))))) %>%
         plyr::rename(c("X.internal Return Fine" ="%Internal Return Fine",
-                       "X.external Return Fine" ="%External Return Fine"))
+                       "X.external Return Fine" ="%External Return Fine")) %>%
+        select(-"Order")
       
   }
     return(plant)
 }
 
 read_rename_final_data = function(){
-  sinter_full = read.csv("./data/syntheticData_20190603.csv",
+  sinter_full = read.csv("./data/syntheticData.csv",
                     stringsAsFactors = FALSE, header = TRUE)
 
   #Remove underscores and change column names to title format for display
@@ -34,6 +35,10 @@ read_rename_final_data = function(){
 
 
 summary_table = function(input_table) {
+  section=data.frame("Section" = input_table[,"Section"])
+  
+  input_table = input_table[,!names(input_table) %in% c("Section")]
+  
   dep_no = apply(input_table, 2, function(x) (sum(!is.na(x))))
   dep_sd = apply(input_table, 2, sd, na.rm=TRUE)
   dep_mean = apply(input_table, 2, mean, na.rm=TRUE)
@@ -42,7 +47,8 @@ summary_table = function(input_table) {
   dep_min = apply(input_table, 2, min, na.rm=TRUE)
   dep_max = apply(input_table, 2, max, na.rm=TRUE)
   
-  dep_summary=data.table("Variables" = names(input_table),
+  dep_summary=data.table("Section" = section[1,],
+                         "Variables" = names(input_table),
                          "# of Observations" = dep_no,
                          'Mean' = round(dep_mean, 2),
                          "Standard Deviation" = round(dep_sd,2),
@@ -51,6 +57,7 @@ summary_table = function(input_table) {
                          "Minimum Value" = dep_min,
                          "Maximum Value" = dep_max
   )
+  print(dep_summary)
 }
 
 sinter=read_rename_final_data()
@@ -60,7 +67,8 @@ feed_data=function(){
       select("Total Bmix Flow" , "Total Clime Flow", "Total Limestone Flow", 
              "Total Solid Fuel Flow",
              "Feo"  ,    "Cao" , "Al2o3",  "Tio2" ,                
-             "K2o",  "P", "Fe"  )
+             "K2o",  "P", "Fe"  ) %>%
+       mutate("Section" = "Feed")
 }
 
 ignition_data = function(){
@@ -108,7 +116,6 @@ test_train=function(data){
 
 xgtest_train=function(data){
   index = sample(1:nrow(data),size = 0.7*nrow(data))
-  print(names(data))
   xgtrain = data[index,] 
   xgtest = data [-index,]
   
@@ -149,10 +156,8 @@ rsq=function(dataset, pred){
 results_df_rf = function(test, train, model){
   
   test_pred = predict(model,test)$prediction
-  print(head(test_pred))
   
   RMSE_TEST=rmse(test_pred, test[,"IRF_PCT"])
-  print(RMSE_TEST)
   
   RMSE_TRAIN = model$prediction.error
      
@@ -177,12 +182,9 @@ results_df_xg = function(test, train, model){
   test_pred = predict(model,newdata = dtest, class='response')
   train_pred = predict(model,newdata = dtrain, class='response')
   
-  print(head(test_pred))
   RMSE_TEST=rmse(predicted=test_pred, actual=test[,1])
-  print(RMSE_TEST)
   
   RMSE_TRAIN = rmse(predicted=train_pred, actual=train[,1])
-  print(RMSE_TRAIN)
   
   rsq_test=rsq(test, test_pred)
   rsq_train = rsq(train, train_pred)
